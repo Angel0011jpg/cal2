@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Calculadora de Compra de Ganado</title>
+
+<style>
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont;
+  background: #f2f2f7;
+}
+header {
+  background: white;
+  padding: 16px;
+  font-size: 20px;
+  font-weight: 600;
+  text-align: center;
+}
+.card {
+  background: white;
+  margin: 12px;
+  padding: 14px;
+  border-radius: 14px;
+}
+input, select, button {
+  width: 100%;
+  padding: 14px;
+  margin-top: 6px;
+  border-radius: 12px;
+  border: 1px solid #ddd;
+  font-size: 16px;
+}
+button {
+  background: #007aff;
+  color: white;
+  font-weight: 600;
+  border: none;
+}
+.ok { color: #2ecc71; font-weight: 600; }
+.neutral { color: #555; font-weight: 600; }
+.bad { color: #e74c3c; font-weight: 600; }
+
+/* ===== HISTORIAL ===== */
+#historialContainer {
+  max-height: 300px;
+  overflow-y: auto;
+  display: none;
+  margin-top: 10px;
+}
+.histItem {
+  border: 1px solid #ddd;
+  border-radius: 12px;
+  margin-bottom: 10px;
+  background: #fff;
+}
+.histHeader {
+  padding: 12px;
+  font-weight: 600;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+}
+.histBody {
+  display: none;
+  padding: 12px;
+  border-top: 1px solid #eee;
+}
+.deleteBtn {
+  background: #ff3b30;
+  margin-top: 10px;
+}
+.toggle {
+  background: #f2f2f7;
+  color: #007aff;
+  font-weight: 600;
+  text-align: center;
+  border-radius: 12px;
+  padding: 12px;
+  margin-top: 10px;
+}
+.stat {
+  background:#f2f2f7;
+  border-radius:12px;
+  padding:10px;
+  margin-top:10px;
+  font-weight:600;
+}
+</style>
+</head>
+
+<body>
+
+<header>🐄 Calculadora Inteligente de Compra</header>
+
+<div class="card">
+  <label>Raza</label>
+  <select id="raza">
+    <option>Brahman</option>
+    <option>Nerole</option>
+    <option>Pardo</option>
+  </select>
+
+  <label>Peso vivo (kg)</label>
+  <input type="number" id="peso">
+
+  <label>Precio kg canal (₡)</label>
+  <input type="number" id="precioCanal">
+
+  <button onclick="calcular()">Calcular rendimientos</button>
+</div>
+
+<div id="resultados"></div>
+
+<div class="card">
+  <button onclick="guardarHistorial()">Guardar cálculo</button>
+
+  <div class="toggle" onclick="toggleHistorial()">
+    📋 Mostrar historial
+  </div>
+
+  <div id="historialContainer">
+    <div id="historial"></div>
+
+    <!-- Estadísticas SOLO del historial -->
+    <div id="stats" class="stat"></div>
+  </div>
+</div>
+
+<script>
+const rendimientos = {
+  Brahman: [0.50, 0.53, 0.56],
+  Nerole: [0.52, 0.55, 0.58],
+  Pardo: [0.54, 0.57, 0.60]
+};
+
+let ultimoRegistro = null;
+let historial = JSON.parse(localStorage.getItem("historialGanado")) || [];
+let historialVisible = false;
+
+/* ===== LÓGICA ORIGINAL (NO TOCADA) ===== */
+function calcular() {
+  const raza = razaEl.value;
+  const peso = +pesoEl.value;
+  const precioCanal = +precioCanalEl.value;
+
+  let html = `<div class="card"><h3>Resultados</h3>`;
+
+  rendimientos[raza].forEach(r => {
+    const kgCanal = peso * r;
+    const ingreso = kgCanal * precioCanal;
+
+    const precioKgVivoBase = ingreso / peso;
+
+    const pagoMenos = precioKgVivoBase * 0.95;
+    const pagoIgual = precioKgVivoBase;
+    const pagoMas = precioKgVivoBase * 1.05;
+
+    const gananciaMenos = ingreso - (pagoMenos * peso);
+    const gananciaMas = ingreso - (pagoMas * peso);
+
+    html += `
+      <p>
+        🔹 Rendimiento ${(r*100).toFixed(1)}%<br>
+        Canal: ${kgCanal.toFixed(1)} kg<br><br>
+
+        💰 Máx ₡/kg vivo:
+        <strong>₡${precioKgVivoBase.toFixed(0)}</strong><br><br>
+
+        🟢 ₡${pagoMenos.toFixed(0)} →
+        <span class="ok">Ganas ₡${gananciaMenos.toFixed(0)}</span><br>
+
+        ⚪ ₡${pagoIgual.toFixed(0)} →
+        <span class="neutral">Tablas</span><br>
+
+        🔴 ₡${pagoMas.toFixed(0)} →
+        <span class="bad">Pierdes ₡${Math.abs(gananciaMas).toFixed(0)}</span>
+      </p><hr>`;
+  });
+
+  html += `</div>`;
+  resultados.innerHTML = html;
+
+  ultimoRegistro = {
+    fecha: new Date().toLocaleString(),
+    raza,
+    peso,
+    precioCanal,
+    detalle: html,
+    rendimientoReal: null // 👈 SOLO HISTORIAL
+  };
+}
+
+/* ===== HISTORIAL ===== */
+function guardarHistorial() {
+  if (!ultimoRegistro) return;
+  historial.unshift(ultimoRegistro);
+  localStorage.setItem("historialGanado", JSON.stringify(historial));
+  renderHistorial();
+}
+
+function renderHistorial() {
+  historialDiv.innerHTML = "";
+  historial.forEach((h, i) => {
+    historialDiv.innerHTML += `
+      <div class="histItem">
+        <div class="histHeader" onclick="toggleItem(${i})">
+          🐄 ${h.raza} | ${h.peso} kg
+          <span>▸</span>
+        </div>
+        <div class="histBody" id="body${i}">
+          <small>🕒 ${h.fecha} | ₡${h.precioCanal}/kg canal</small>
+          ${h.detalle}
+
+          <!-- Rendimiento real SOLO para historial -->
+          <label>Rendimiento real (%)</label>
+          <input type="number" step="0.1" placeholder="Ej: 55.2"
+            value="${h.rendimientoReal ?? ""}"
+            onchange="setRendReal(${i}, this.value)">
+
+          <button class="deleteBtn" onclick="eliminar(${i})">🗑 Eliminar compra</button>
+        </div>
+      </div>
+    `;
+  });
+  renderStats();
+}
+
+function setRendReal(i, val) {
+  const v = parseFloat(val);
+  historial[i].rendimientoReal = isNaN(v) ? null : v;
+  localStorage.setItem("historialGanado", JSON.stringify(historial));
+  renderStats();
+}
+
+function eliminar(i) {
+  if (!confirm("¿Eliminar esta compra del historial?")) return;
+  historial.splice(i, 1);
+  localStorage.setItem("historialGanado", JSON.stringify(historial));
+  renderHistorial();
+}
+
+function toggleItem(i) {
+  const el = document.getElementById("body" + i);
+  el.style.display = el.style.display === "block" ? "none" : "block";
+}
+
+function toggleHistorial() {
+  historialVisible = !historialVisible;
+  historialContainer.style.display = historialVisible ? "block" : "none";
+  document.querySelector(".toggle").innerText =
+    historialVisible ? "🔽 Ocultar historial" : "📋 Mostrar historial";
+}
+
+/* ===== ESTADÍSTICAS SOLO DESDE HISTORIAL ===== */
+function renderStats() {
+  if (!historial.length) {
+    stats.innerHTML = "Sin datos aún";
+    return;
+  }
+
+  // Raza más comprada
+  const compras = {};
+  historial.forEach(h => compras[h.raza] = (compras[h.raza] || 0) + 1);
+  const razaMasComprada = Object.entries(compras).sort((a,b)=>b[1]-a[1])[0][0];
+
+  // Mejor rendimiento real promedio
+  const rend = {};
+  historial.forEach(h => {
+    if (h.rendimientoReal != null) {
+      rend[h.raza] = rend[h.raza] || [];
+      rend[h.raza].push(h.rendimientoReal);
+    }
+  });
+
+  let mejorRaza = "—";
+  let mejorProm = -Infinity;
+  for (const r in rend) {
+    const prom = rend[r].reduce((a,b)=>a+b,0)/rend[r].length;
+    if (prom > mejorProm) {
+      mejorProm = prom;
+      mejorRaza = r;
+    }
+  }
+
+  stats.innerHTML = `
+    🐄 Raza más comprada: <strong>${razaMasComprada}</strong><br>
+    🥇 Mejor rendimiento real: <strong>${mejorRaza}</strong>
+    ${mejorProm > -Infinity ? `(${mejorProm.toFixed(2)}%)` : ""}
+  `;
+}
+
+/* ===== DOM ===== */
+const razaEl = document.getElementById("raza");
+const pesoEl = document.getElementById("peso");
+const precioCanalEl = document.getElementById("precioCanal");
+const resultados = document.getElementById("resultados");
+const historialDiv = document.getElementById("historial");
+const historialContainer = document.getElementById("historialContainer");
+const stats = document.getElementById("stats");
+
+renderHistorial();
+</script>
+
+</body>
+</html>

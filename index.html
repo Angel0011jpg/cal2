@@ -42,7 +42,6 @@ button {
 .neutral { color: #555; font-weight: 600; }
 .bad { color: #e74c3c; font-weight: 600; }
 
-/* ===== HISTORIAL ===== */
 #historialContainer {
   max-height: 300px;
   overflow-y: auto;
@@ -98,9 +97,10 @@ button {
 <div class="card">
   <label>Raza</label>
   <select id="raza">
-    <option>Brahman</option>
-    <option>Nerole</option>
-    <option>Pardo</option>
+    <option value="Brahman">Brahman</option>
+    <option value="Nerole">Nerole</option>
+    <option value="Pardo">Pardo</option>
+    <option value="Otras razas">Otras razas</option>
   </select>
 
   <label>Peso vivo (kg)</label>
@@ -123,32 +123,38 @@ button {
 
   <div id="historialContainer">
     <div id="historial"></div>
-
-    <!-- Estadísticas SOLO del historial -->
     <div id="stats" class="stat"></div>
   </div>
 </div>
 
 <script>
+/* ===== RENDIMIENTOS ===== */
 const rendimientos = {
   Brahman: [0.50, 0.53, 0.56],
   Nerole: [0.52, 0.55, 0.58],
-  Pardo: [0.54, 0.57, 0.60]
+  Pardo: [0.54, 0.57, 0.60],
+  "Otras razas": [0.48, 0.50, 0.52, 0.54, 0.56]
 };
 
 let ultimoRegistro = null;
 let historial = JSON.parse(localStorage.getItem("historialGanado")) || [];
 let historialVisible = false;
 
-/* ===== LÓGICA ORIGINAL (NO TOCADA) ===== */
+/* ===== LÓGICA ORIGINAL (MISMA, SOLO BLINDADA) ===== */
 function calcular() {
-  const raza = razaEl.value;
+  const raza = razaEl.value.trim();
   const peso = +pesoEl.value;
   const precioCanal = +precioCanalEl.value;
 
+  const listaRend = rendimientos[raza];
+  if (!listaRend) {
+    alert("Raza sin rendimientos definidos");
+    return;
+  }
+
   let html = `<div class="card"><h3>Resultados</h3>`;
 
-  rendimientos[raza].forEach(r => {
+  listaRend.forEach(r => {
     const kgCanal = peso * r;
     const ingreso = kgCanal * precioCanal;
 
@@ -189,7 +195,7 @@ function calcular() {
     peso,
     precioCanal,
     detalle: html,
-    rendimientoReal: null // 👈 SOLO HISTORIAL
+    rendimientoReal: null
   };
 }
 
@@ -214,16 +220,14 @@ function renderHistorial() {
           <small>🕒 ${h.fecha} | ₡${h.precioCanal}/kg canal</small>
           ${h.detalle}
 
-          <!-- Rendimiento real SOLO para historial -->
           <label>Rendimiento real (%)</label>
-          <input type="number" step="0.1" placeholder="Ej: 55.2"
+          <input type="number" step="0.1"
             value="${h.rendimientoReal ?? ""}"
             onchange="setRendReal(${i}, this.value)">
 
           <button class="deleteBtn" onclick="eliminar(${i})">🗑 Eliminar compra</button>
         </div>
-      </div>
-    `;
+      </div>`;
   });
   renderStats();
 }
@@ -254,19 +258,16 @@ function toggleHistorial() {
     historialVisible ? "🔽 Ocultar historial" : "📋 Mostrar historial";
 }
 
-/* ===== ESTADÍSTICAS SOLO DESDE HISTORIAL ===== */
 function renderStats() {
   if (!historial.length) {
     stats.innerHTML = "Sin datos aún";
     return;
   }
 
-  // Raza más comprada
   const compras = {};
   historial.forEach(h => compras[h.raza] = (compras[h.raza] || 0) + 1);
   const razaMasComprada = Object.entries(compras).sort((a,b)=>b[1]-a[1])[0][0];
 
-  // Mejor rendimiento real promedio
   const rend = {};
   historial.forEach(h => {
     if (h.rendimientoReal != null) {
